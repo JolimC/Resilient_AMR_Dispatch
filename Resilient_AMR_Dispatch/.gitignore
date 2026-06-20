@@ -4,3 +4,7 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+# Local planning and implementation instructions
+/docs/initial_instructions.md
+/docs/plan.md
