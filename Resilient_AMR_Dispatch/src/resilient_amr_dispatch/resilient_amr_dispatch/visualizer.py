@@ -21,6 +21,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
 
 from resilient_amr_dispatch.hazards import Hazard
+from resilient_amr_dispatch.warehouse_map import SHELF_BOUNDS
 
 
 STATE_TOPIC = "/fleet/robot_state"
@@ -33,19 +34,6 @@ STATE_COLORS = {
     "completed": "#2e7d32",
     "blocked": "#c62828",
 }
-
-# Shelves occupy the gaps between the Phase 1 travel lanes.
-SHELVES = (
-    (25.0, 15.0, 18.0, 3.0),
-    (57.0, 15.0, 18.0, 3.0),
-    (25.0, 37.0, 18.0, 3.0),
-    (57.0, 37.0, 18.0, 3.0),
-    (25.0, 60.0, 18.0, 3.0),
-    (57.0, 60.0, 18.0, 3.0),
-    (25.0, 82.0, 18.0, 3.0),
-    (57.0, 82.0, 18.0, 3.0),
-)
-
 
 class FleetVisualizer(Node):
     def __init__(self) -> None:
@@ -106,12 +94,12 @@ class FleetVisualizer(Node):
         axis.text(9.0, 97.0, "STAGING", ha="center", va="top", color="#2874a6")
         axis.text(91.0, 97.0, "DOCKS", ha="center", va="top", color="#1e8449")
 
-        for x, y, width, height in SHELVES:
+        for bounds in SHELF_BOUNDS:
             axis.add_patch(
                 Rectangle(
-                    (x, y),
-                    width,
-                    height,
+                    (bounds.x_min, bounds.y_min),
+                    bounds.x_max - bounds.x_min,
+                    bounds.y_max - bounds.y_min,
                     facecolor="#566573",
                     edgecolor="#2c3e50",
                     linewidth=1.0,
@@ -225,8 +213,10 @@ class FleetVisualizer(Node):
                 state.get("x"),
                 state.get("y"),
                 state.get("state"),
+                state.get("recovery_state"),
                 state.get("path_affected"),
                 json.dumps(state.get("goal"), sort_keys=True),
+                json.dumps(state.get("planned_path"), sort_keys=True),
             )
             for robot_id, state in sorted(states.items())
         )
@@ -353,7 +343,14 @@ class FleetVisualizer(Node):
             artists = self._artists[robot_id]
             x = float(state["x"])
             y = float(state["y"])
-            color = STATE_COLORS[str(state["state"])]
+            lifecycle = str(state["state"])
+            recovery_state = str(state.get("recovery_state", "none"))
+            display_state = (
+                recovery_state
+                if recovery_state in ("rerouting", "blocked")
+                else lifecycle
+            )
+            color = STATE_COLORS[display_state]
             trail = trails.get(robot_id, ())
 
             artists["point"].set_data([x], [y])
@@ -370,15 +367,32 @@ class FleetVisualizer(Node):
                 goal_x = float(goal["x"])
                 goal_y = float(goal["y"])
                 artists["goal"].set_data([goal_x], [goal_y])
-                if trail:
+                planned_path = state.get("planned_path")
+                if isinstance(planned_path, list) and planned_path:
+                    path_points = [(x, y)] + [
+                        (float(point["x"]), float(point["y"]))
+                        for point in planned_path
+                    ]
                     artists["path"].set_data(
-                        [trail[0][0], goal_x], [trail[0][1], goal_y]
+                        [point[0] for point in path_points],
+                        [point[1] for point in path_points],
                     )
+                    artists["path"].set_color(color)
+                else:
+                    artists["path"].set_data([], [])
             else:
                 artists["goal"].set_data([], [])
                 artists["path"].set_data([], [])
 
-        counts = Counter(str(state["state"]) for state in states.values())
+        display_states = {
+            robot_id: (
+                str(state.get("recovery_state"))
+                if state.get("recovery_state") in ("rerouting", "blocked")
+                else str(state["state"])
+            )
+            for robot_id, state in states.items()
+        }
+        counts = Counter(display_states.values())
         mode = "LIVE" if self._follow_live else "PLAY" if self._playing else "PAUSED"
         status_lines = [
             f"mode:      {mode:<7}",
@@ -395,7 +409,7 @@ class FleetVisualizer(Node):
             "",
         ]
         status_lines.extend(
-            f"{robot_id:<7} {str(states[robot_id]['state']):<10}"
+            f"{robot_id:<7} {display_states[robot_id]:<10}"
             for robot_id in sorted(states)
         )
         self._status_text.set_text("\n".join(status_lines))

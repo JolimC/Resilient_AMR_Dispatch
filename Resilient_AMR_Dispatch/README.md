@@ -1,6 +1,6 @@
 # Resilient AMR Dispatch
 
-A ROS 2 Jazzy and MQTT warehouse AMR simulation. The current Phase 3 demo
+A ROS 2 Jazzy and MQTT warehouse AMR simulation. The current Phase 4 demo
 launches a central dispatcher and eight simulated robots. The dispatcher sends
 missions over MQTT, the robots publish their positions and mission states over
 ROS 2, and a live Matplotlib window visualizes warehouse activity and injected
@@ -90,11 +90,25 @@ The visualization includes DVR-style playback controls:
 - **Play** resumes playback from the selected frame and returns to live display
   after catching up.
 
-During Phase 3, a red hatched hazmat spill appears across the active paths of
+During the demo, a red hatched hazmat spill appears across the active paths of
 several robots. The injector publishes it on `/warehouse/hazards` and
 `vda5050/fleet/events/hazard`. Affected agents log `active_path_affected`, and
-the status panel reports the affected count. Local rerouting is intentionally
-deferred to Phase 4, so Phase 3 only detects and displays the disruption.
+the status panel reports the affected count.
+
+Affected robots run a bounded local A* recovery against the warehouse grid and
+known blocked cells. Successful recovery paths bend around the spill and appear
+yellow while `recovery_state` is `rerouting`. After clearing the spill, robots
+return to blue normal execution and continue to their original goals. Each
+recovery publishes an exception report on
+`vda5050/fleet/events/exception`. If no route exists, the robot stops in the red
+`blocked` state and escalates to dispatch.
+
+Each AMR also consumes peer telemetry. Other robots' current positions and
+assigned goals are reserved with a one-cell safety radius during local
+planning. If a peer moves into a planned route, the affected AMR replans or
+waits until the temporary conflict clears. Completed robots therefore remain
+physical obstacles and recovery paths do not pass through another AMR's final
+position.
 
 Close the visualization window and press `Ctrl+C` to stop the launched ROS
 nodes. The Docker services remain running so the demo can be launched again

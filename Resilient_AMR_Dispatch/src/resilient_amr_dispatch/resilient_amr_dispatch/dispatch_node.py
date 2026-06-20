@@ -1,4 +1,4 @@
-"""Central dispatcher for the Phase 1 baseline missions."""
+"""Central dispatcher and mission-state observer."""
 
 from __future__ import annotations
 
@@ -31,6 +31,7 @@ class DispatchNode(Node):
         self._mission_by_robot = {mission.robot_id: mission for mission in self._missions}
         self._observed_robots: set[str] = set()
         self._last_states: dict[str, str] = {}
+        self._last_recovery_states: dict[str, str] = {}
         self._completed: set[str] = set()
         self._affected_robots: set[str] = set()
         self._dispatch_delay = float(self.get_parameter("dispatch_delay").value)
@@ -117,6 +118,18 @@ class DispatchNode(Node):
                 x=state.get("x"),
                 y=state.get("y"),
             )
+
+        recovery_state = str(state.get("recovery_state", "none"))
+        if self._last_recovery_states.get(robot_id) != recovery_state:
+            self._last_recovery_states[robot_id] = recovery_state
+            if recovery_state != "none":
+                self._log(
+                    "robot_recovery_state_changed",
+                    robot_id=robot_id,
+                    mission_id=mission_id,
+                    recovery_state=recovery_state,
+                    hazard_id=state.get("active_hazard_id"),
+                )
 
         if lifecycle == "completed":
             self._completed.add(robot_id)
