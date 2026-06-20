@@ -158,17 +158,33 @@ Resilient_AMR_Dispatch/docs/captures/final_metrics.json
 
 The visualizer automatically writes these evidence frames to the same folder:
 
-- `baseline_dispatch.png`
-- `hazard_injected.png`
-- `local_reroute.png`
-- `final_summary.png`
+- `baseline_dispatch.png` [(example)](Resilient_AMR_Dispatch/docs/captures/phase5_metrics/baseline_dispatch.png)
+- `hazard_injected.png` [(example)](Resilient_AMR_Dispatch/docs/captures/phase5_metrics/hazard_injected.png)
+- `local_reroute.png` [(example)](Resilient_AMR_Dispatch/docs/captures/phase5_metrics/local_reroute.png)
+- `final_summary.png` [(example)](Resilient_AMR_Dispatch/docs/captures/phase5_metrics/final_summary.png)
 
 Existing recorded demonstrations:
 
-- [Phase 1 acceptance output](Resilient_AMR_Dispatch/docs/captures/phase1_acceptance_checks.png)
-- [Phase 2 live visualization](Resilient_AMR_Dispatch/docs/captures/Phase2_visualization.mkv)
-- [Phase 3 hazard injection](Resilient_AMR_Dispatch/docs/captures/phase3_hazard_injection.mkv)
-- [Phase 4 local recovery](Resilient_AMR_Dispatch/docs/captures/phase4_local_recovery.mkv)
+These recordings show the project progressing from centralized mission
+dispatch (Phase 1), through live fleet visualization (Phase 2) and unexpected
+hazard injection (Phase 3), to bounded local rerouting and recovery (Phase 4).
+The demo at the top of the README adds final fleet metrics in Phase 5.
+
+### Phase 1: Centralized Dispatch Baseline
+
+[![Phase 1 centralized dispatch baseline](Resilient_AMR_Dispatch/docs/captures/phase1_acceptance_checks.png)](Resilient_AMR_Dispatch/docs/captures/phase1_acceptance_checks.png)
+
+### Phase 2: Live Visualization
+
+[![Phase 2 live visualization](docs/phase2_demo_thumbnail.png)](https://JolimC.github.io/Resilient_AMR_Dispatch/phase2_demo.html)
+
+### Phase 3: Hazard Injection
+
+[![Phase 3 hazard injection](docs/phase3_demo_thumbnail.png)](https://JolimC.github.io/Resilient_AMR_Dispatch/phase3_demo.html)
+
+### Phase 4: Local Recovery
+
+[![Phase 4 local recovery](docs/phase4_demo_thumbnail.png)](https://JolimC.github.io/Resilient_AMR_Dispatch/phase4_demo.html)
 
 Metric definitions:
 
@@ -252,10 +268,3 @@ reachable missions must complete without crossing known blocked cells.
   Foxglove or a production fleet dashboard.
 - Adopt complete VDA5050 schemas and add broker authentication, authorization,
   TLS, persistence, and delivery/error handling.
-
-## Resume Bullet
-
-Built a ROS 2 Jazzy/MQTT warehouse AMR simulator with centralized mission
-dispatch, live telemetry visualization, deterministic hazard injection, local
-A* recovery, fleet-aware collision avoidance, exception reporting, and recovery
-metrics.
