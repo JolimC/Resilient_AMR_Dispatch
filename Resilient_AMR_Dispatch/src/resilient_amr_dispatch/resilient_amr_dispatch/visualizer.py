@@ -5,6 +5,7 @@ from __future__ import annotations
 from bisect import bisect_right
 from collections import Counter
 import json
+from pathlib import Path
 import threading
 import time
 from typing import Any
@@ -26,6 +27,7 @@ from resilient_amr_dispatch.warehouse_map import SHELF_BOUNDS
 
 STATE_TOPIC = "/fleet/robot_state"
 HAZARD_TOPIC = "/warehouse/hazards"
+METRICS_TOPIC = "/fleet/metrics"
 STATE_COLORS = {
     "idle": "#7f8c8d",
     "assigned": "#8e44ad",
@@ -38,12 +40,22 @@ STATE_COLORS = {
 class FleetVisualizer(Node):
     def __init__(self) -> None:
         super().__init__("visualizer")
+        self.declare_parameter("capture_dir", "/workspace/captures")
+        self._capture_dir = Path(str(self.get_parameter("capture_dir").value))
+        self._capture_dir.mkdir(parents=True, exist_ok=True)
+        self._saved_captures: set[str] = set()
         self._states: dict[str, dict[str, Any]] = {}
         self._hazards: dict[str, dict[str, Any]] = {}
+        self._metrics: dict[str, Any] = {}
         self._artists: dict[str, dict[str, Any]] = {}
         self._hazard_artists: dict[str, tuple[Rectangle, Any]] = {}
         self._history: list[
-            tuple[float, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]
+            tuple[
+                float,
+                dict[str, dict[str, Any]],
+                dict[str, dict[str, Any]],
+                dict[str, Any],
+            ]
         ] = []
         self._recording_started = time.monotonic()
         self._last_recorded_signature: tuple[Any, ...] | None = None
@@ -59,6 +71,7 @@ class FleetVisualizer(Node):
             reliability=ReliabilityPolicy.RELIABLE,
         )
         self.create_subscription(String, HAZARD_TOPIC, self._on_hazard, hazard_qos)
+        self.create_subscription(String, METRICS_TOPIC, self._on_metrics, hazard_qos)
 
         self._figure, (self._map_axis, self._status_axis) = plt.subplots(
             1,
@@ -197,12 +210,22 @@ class FleetVisualizer(Node):
         with self._lock:
             self._hazards[hazard.hazard_id] = payload
 
+    def _on_metrics(self, message: String) -> None:
+        try:
+            payload = json.loads(message.data)
+        except (TypeError, ValueError, json.JSONDecodeError) as exc:
+            self.get_logger().warning(f"Ignored invalid fleet metrics: {exc}")
+            return
+        with self._lock:
+            self._metrics = payload
+
     def _record_snapshot(self) -> None:
         with self._lock:
             states = {robot_id: dict(state) for robot_id, state in self._states.items()}
             hazards = {
                 hazard_id: dict(hazard) for hazard_id, hazard in self._hazards.items()
             }
+            metrics = dict(self._metrics)
         if not states:
             return
 
@@ -224,17 +247,23 @@ class FleetVisualizer(Node):
             (hazard_id, json.dumps(hazard, sort_keys=True))
             for hazard_id, hazard in sorted(hazards.items())
         )
-        signature = (state_signature, hazard_signature)
+        metrics_signature = json.dumps(metrics, sort_keys=True)
+        signature = (state_signature, hazard_signature, metrics_signature)
         if signature == self._last_recorded_signature:
             return
 
         elapsed = time.monotonic() - self._recording_started
-        self._history.append((elapsed, states, hazards))
+        self._history.append((elapsed, states, hazards, metrics))
         self._last_recorded_signature = signature
 
     def _select_playback_frame(
         self,
-    ) -> tuple[float, dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    ) -> tuple[
+        float,
+        dict[str, dict[str, Any]],
+        dict[str, dict[str, Any]],
+        dict[str, Any],
+    ]:
         if self._follow_live:
             self._playback_index = len(self._history) - 1
         elif self._playing:
@@ -247,7 +276,7 @@ class FleetVisualizer(Node):
 
     def _trails_at(self, playback_index: int) -> dict[str, list[tuple[float, float]]]:
         trails: dict[str, list[tuple[float, float]]] = {}
-        for _, states, _ in self._history[: playback_index + 1]:
+        for _, states, _, _ in self._history[: playback_index + 1]:
             for robot_id, state in states.items():
                 point = (float(state["x"]), float(state["y"]))
                 robot_trail = trails.setdefault(robot_id, [])
@@ -318,7 +347,7 @@ class FleetVisualizer(Node):
         if not self._history:
             return [self._status_text]
 
-        selected_time, states, hazards = self._select_playback_frame()
+        selected_time, states, hazards, metrics = self._select_playback_frame()
         trails = self._trails_at(self._playback_index)
         self._update_timeline(selected_time)
 
@@ -399,13 +428,18 @@ class FleetVisualizer(Node):
             f"time:      {selected_time:5.1f}s",
             "",
             f"robots:     {len(states):2d}",
+            f"missions:   {int(metrics.get('missions_assigned', 0)):2d}",
+            f"complete:   {int(metrics.get('missions_completed', 0)):2d}",
             f"assigned:   {counts['assigned']:2d}",
             f"executing:  {counts['executing']:2d}",
-            f"completed:  {counts['completed']:2d}",
             f"rerouting:  {counts['rerouting']:2d}",
             f"blocked:    {counts['blocked']:2d}",
-            f"hazards:    {len(hazards):2d}",
+            f"hazards:    {int(metrics.get('hazards_injected', 0)):2d}",
             f"affected:   {sum(bool(state.get('path_affected')) for state in states.values()):2d}",
+            f"reroutes:   {int(metrics.get('local_reroutes', 0)):2d}",
+            f"escalated:  {int(metrics.get('escalations', 0)):2d}",
+            f"avg delay:  {float(metrics.get('average_hazard_delay_seconds', 0.0)):4.1f}s",
+            f"stale:      {int(metrics.get('stale_telemetry_alerts', 0)):2d}",
             "",
         ]
         status_lines.extend(
@@ -413,6 +447,7 @@ class FleetVisualizer(Node):
             for robot_id in sorted(states)
         )
         self._status_text.set_text("\n".join(status_lines))
+        self._capture_key_frames(states, hazards, display_states, metrics)
 
         result: list[Any] = [self._status_text]
         for artists in self._artists.values():
@@ -420,6 +455,42 @@ class FleetVisualizer(Node):
         for artists in self._hazard_artists.values():
             result.extend(artists)
         return result
+
+    def _capture_key_frames(
+        self,
+        states: dict[str, dict[str, Any]],
+        hazards: dict[str, dict[str, Any]],
+        display_states: dict[str, str],
+        metrics: dict[str, Any],
+    ) -> None:
+        candidates = []
+        if (
+            any(state == "executing" for state in display_states.values())
+            and not hazards
+            and metrics.get("missions_assigned", 0)
+        ):
+            candidates.append("baseline_dispatch.png")
+        if hazards and int(metrics.get("hazards_injected", 0)) >= len(hazards):
+            candidates.append("hazard_injected.png")
+        if (
+            any(state == "rerouting" for state in display_states.values())
+            and metrics.get("local_reroutes", 0)
+        ):
+            candidates.append("local_reroute.png")
+        if metrics.get("final"):
+            candidates.append("final_summary.png")
+        for filename in candidates:
+            if filename in self._saved_captures:
+                continue
+            self._saved_captures.add(filename)
+            self._figure.savefig(
+                self._capture_dir / filename,
+                dpi=140,
+                bbox_inches="tight",
+            )
+            self.get_logger().info(
+                json.dumps({"event": "screenshot_saved", "filename": filename})
+            )
 
     def show(self) -> None:
         plt.show()

@@ -66,6 +66,21 @@ def _launch_nodes(context: LaunchContext) -> list[Node]:
     nodes.append(
         Node(
             package="resilient_amr_dispatch",
+            executable="fleet_monitor",
+            name="fleet_monitor",
+            output="screen",
+            parameters=[
+                {
+                    "expected_robots": robot_count,
+                    "mqtt_host": mqtt_host,
+                    "mqtt_port": mqtt_port,
+                }
+            ],
+        )
+    )
+    nodes.append(
+        Node(
+            package="resilient_amr_dispatch",
             executable="visualizer",
             name="visualizer",
             output="screen",

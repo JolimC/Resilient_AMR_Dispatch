@@ -37,6 +37,7 @@ services:
       PULSE_SERVER: /mnt/wslg/PulseServer
     volumes:
       - ./src:/workspace/src
+      - ./docs/captures:/workspace/captures
       - /mnt/wslg:/mnt/wslg
       - /tmp/.X11-unix:/tmp/.X11-unix
     working_dir: /workspace

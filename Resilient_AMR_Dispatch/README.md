@@ -1,18 +1,102 @@
 # Resilient AMR Dispatch
 
-A ROS 2 Jazzy and MQTT warehouse AMR simulation. The current Phase 4 demo
-launches a central dispatcher and eight simulated robots. The dispatcher sends
-missions over MQTT, the robots publish their positions and mission states over
-ROS 2, and a live Matplotlib window visualizes warehouse activity and injected
-disruptions.
+A deterministic ROS 2 Jazzy and MQTT simulation of centralized warehouse AMR
+dispatch with robot-side recovery. Eight robots receive missions over MQTT,
+publish live ROS 2 telemetry, avoid injected hazards and occupied robot goals,
+and report recovery results to a fleet monitor and interactive visualization.
+
+The project demonstrates a clear division of responsibility: central dispatch
+owns mission objectives, while each robot provides bounded local recovery when
+an unexpected event invalidates its assigned route. Affected robots stop,
+replan to the original goal within defined limits, and report or escalate the
+outcome. Handling these execution-level disruptions locally reduces avoidable
+control-plane load and response latency at mission control while preventing
+prolonged stops and inefficient routing across the fleet.
+
+## Final Demo
+
+[![Phase 5 final demo](docs/captures/phase5_metrics/final_summary.png)](docs/captures/phase5_metrics/phase5_metrics.mkv)
+
+Click the image to view the Phase 5 demonstration of dispatch, hazard recovery,
+and final fleet metrics.
+
+## Architecture
+
+```text
+dispatch_node -- MQTT orders --> amr_agent (6-12 instances)
+                                      |
+hazard_injector -- ROS 2 hazard ------+-- ROS 2 state --> visualizer
+        |                             |                      |
+        +-- MQTT hazard               +-- MQTT exception --> fleet_monitor
+                                                               |
+                                             metrics + final JSON summary
+```
+
+- `dispatch_node` owns business-level mission assignment.
+- `amr_agent` follows the assigned route and performs bounded local A* recovery.
+- `hazard_injector` creates a deterministic blocked zone during execution.
+- `fleet_monitor` aggregates mission, hazard, recovery, delay, and health metrics.
+- `visualizer` provides the live map, status panel, timeline playback, and captures.
+- Mosquitto carries VDA5050-inspired orders and event reports; ROS 2 carries live
+  simulation state.
+
+## Current Implementation Boundaries
+
+The project uses small, inspectable components in place of production robotics
+infrastructure:
+
+| Production capability | Current implementation |
+|---|---|
+| Mission dispatch and control | Custom `dispatch_node` assigning deterministic missions |
+| Robot navigation and recovery | Simplified motion with local grid-based A* planning |
+| Robot and warehouse simulation | Fixed `100 x 100` 2D warehouse model |
+| Operations dashboard | Matplotlib visualizer and `fleet_monitor` summaries |
+| Cloud-to-robot messaging | Mosquitto with VDA5050-inspired JSON payloads |
+
+These substitutions keep dispatch, recovery decisions, messages, and failure
+handling visible. They demonstrate the integration pattern without claiming
+production navigation, simulation fidelity, or VDA5050 compliance.
+
+## Runtime Interfaces
+
+JSON payloads are transported through MQTT or ROS 2 `std_msgs/String`:
+
+| Topic | Transport | Publisher | Primary consumers | Purpose |
+|---|---|---|---|---|
+| `vda5050/fleet/order` | MQTT | `dispatch_node` | `amr_agent` | Mission assignment |
+| `/fleet/robot_state` | ROS 2 | `amr_agent` | Dispatch, peers, monitor, visualizer | Position and mission/recovery state |
+| `/warehouse/hazards` | ROS 2 | `hazard_injector` | Agents, monitor, visualizer | Local hazard notification |
+| `vda5050/fleet/events/hazard` | MQTT | `hazard_injector` | External event consumers | Cloud-style hazard event |
+| `vda5050/fleet/events/exception` | MQTT | `amr_agent` | `fleet_monitor` | Reroute or escalation report |
+| `/fleet/metrics` | ROS 2 | `fleet_monitor` | `visualizer` | Aggregated run metrics |
+
+## Simulation and Recovery Behavior
+
+The scenario runs 6–12 point-model AMRs in a fixed `100 x 100` warehouse with
+shelves, staging space, docks, deterministic missions, and one timed blocked
+zone. Robots move incrementally along their current waypoints and publish live
+state for dispatch, peer avoidance, monitoring, and visualization.
+
+When an unexpected hazard intersects an AMR's remaining route, the robot:
+
+1. Marks the hazard, static shelves, and relevant peer reservations as blocked.
+2. Runs local A* toward the original dispatch goal.
+3. Switches to `rerouting` and publishes an exception event if a route exists.
+4. Resumes normal execution after clearing the disruption.
+5. Stops in `blocked` and escalates if no valid route exists.
+
+Recovery is deliberately bounded: it may alter the local path, wait for a peer,
+or escalate, but it does not replace the mission, select a new business goal, or
+silently cross a known obstruction.
 
 ## Prerequisites
 
-- Docker Desktop running with the WSL 2 engine enabled
-- Docker Desktop integration enabled for the WSL distribution
-- A WSL terminal with `docker` and `docker compose` available
+- Docker Desktop using the WSL 2 engine
+- Docker Desktop integration enabled for the active WSL distribution
+- WSLg for the Matplotlib window
+- `docker` and `docker compose` available in the WSL terminal
 
-Verify the environment with:
+Run all commands below from the repository directory. Verify Docker first:
 
 ```bash
 docker version
@@ -21,112 +105,91 @@ docker compose version
 
 ## First-Time Setup
 
-Before running the demo for the first time, build the ROS 2 image and start the
-Compose services:
+Build the ROS 2 image and start the Mosquitto and ROS 2 containers:
 
 ```bash
 docker compose up -d --build
 docker compose ps
 ```
 
-This constructs the custom ROS 2 image, starts both the `mqtt` and `ros2`
-containers, and builds the mounted ROS workspace. Both services should report
-as running, with the MQTT service reporting as healthy.
-
-You only need `--build` again after changing the `Dockerfile` or its system
-dependencies.
-
-If you previously built Phase 0 or Phase 1, rebuild once for Phase 2 because the
-image now includes the Tk graphical backend:
-
-```bash
-docker compose up -d --build
-```
+Both services should be running and `mqtt` should be healthy. Use `--build`
+again only after changing the `Dockerfile` or image dependencies. Source files
+are mounted into `/workspace/src`, so normal Python changes require only the
+workspace build performed by the demo script.
 
 ## Run the Demo
 
-From this repository directory in WSL, run:
+Reproduce the full scenario with one command:
 
 ```bash
 ./run_demo.sh
 ```
 
-The script performs the complete development run sequence:
+The script starts the Compose services if needed, runs
+`colcon build --symlink-install`, sources the workspace, and launches every demo
+node. The visualizer opens through WSLg. The default scenario uses eight AMRs
+and injects `spill_001` after 2.5 seconds.
 
-1. Starts the Mosquitto and ROS 2 Compose services if they are not running.
-2. Builds the mounted ROS 2 workspace with `colcon build --symlink-install`.
-3. Sources the built workspace.
-4. Launches the centralized dispatch demo.
-
-The default scenario starts eight AMRs. To select any supported count from 6
-through 12, pass a ROS launch argument:
+Optional launch arguments select 6-12 robots or change the hazard timing:
 
 ```bash
-./run_demo.sh robot_count:=6
+./run_demo.sh robot_count:=6 hazard_delay:=4.0
 ```
 
-The default scenario injects `spill_001` after 2.5 seconds. Its delay can be
-changed with another ROS launch argument:
+During the run, affected robots stop using their invalid nominal paths and use
+local A* to route around shelves, hazards, peers, and completed robots' occupied
+goals. A robot that cannot find a bounded route stops and escalates instead of
+crossing a blocked area.
+
+The visualizer supports **Pause**, **Play**, and timeline scrubbing. Closing its
+window ends the launch. Press `Ctrl+C` if the terminal remains active. Run
+`./run_demo.sh` again to restart the scenario; recreating the containers between
+runs is unnecessary.
+
+## Results and Captures
+
+The side panel reports missions, hazards, reroutes, escalations, average hazard
+delay, and stale telemetry alerts. At terminal completion, `fleet_monitor` logs
+a structured `final_summary` and writes:
+
+```text
+docs/captures/final_metrics.json
+```
+
+The visualizer automatically writes these evidence frames to the same folder:
+
+- `baseline_dispatch.png`
+- `hazard_injected.png`
+- `local_reroute.png`
+- `final_summary.png`
+
+Existing recorded demonstrations:
+
+- [Phase 1 acceptance output](docs/captures/phase1_acceptance_checks.png)
+- [Phase 2 live visualization](docs/captures/Phase2_visualization.mkv)
+- [Phase 3 hazard injection](docs/captures/phase3_hazard_injection.mkv)
+- [Phase 4 local recovery](docs/captures/phase4_local_recovery.mkv)
+
+Metric definitions:
+
+- **Missions assigned/completed:** unique robot/mission pairs observed and those
+  reaching `completed`.
+- **Hazards injected:** unique hazard IDs observed.
+- **Local reroutes/escalations:** unique recovery or failure events.
+- **Average hazard delay:** affected missions' actual duration minus their
+  straight-line nominal duration at configured speed, clamped to zero.
+- **Stale telemetry:** active robots silent for more than 1.5 seconds, counted
+  once per stale episode.
+
+To run only the monitor while a scenario is active and write its latest summary
+when stopped:
 
 ```bash
-./run_demo.sh hazard_delay:=4.0
+docker compose exec ros2 bash -lc \
+  'source /workspace/install/setup.bash && ros2 run resilient_amr_dispatch fleet_monitor --summary'
 ```
 
-The demo opens a live warehouse window through WSLg. It shows shelves, staging
-and dock areas, robot positions, goals, planned paths, traveled paths, and a
-fleet status panel. Each robot also logs the `assigned`, `executing`, and
-`completed` mission states. A successful run ends with a dispatcher message
-containing:
-
-```json
-{"event":"baseline_complete","missions_assigned":8,"missions_completed":8}
-```
-
-The visualization includes DVR-style playback controls:
-
-- **Pause** freezes the displayed frame while incoming telemetry continues to
-  be recorded.
-- **Timeline** can be dragged to inspect an earlier or later recorded frame.
-- **Play** resumes playback from the selected frame and returns to live display
-  after catching up.
-
-During the demo, a red hatched hazmat spill appears across the active paths of
-several robots. The injector publishes it on `/warehouse/hazards` and
-`vda5050/fleet/events/hazard`. Affected agents log `active_path_affected`, and
-the status panel reports the affected count.
-
-Affected robots run a bounded local A* recovery against the warehouse grid and
-known blocked cells. Successful recovery paths bend around the spill and appear
-yellow while `recovery_state` is `rerouting`. After clearing the spill, robots
-return to blue normal execution and continue to their original goals. Each
-recovery publishes an exception report on
-`vda5050/fleet/events/exception`. If no route exists, the robot stops in the red
-`blocked` state and escalates to dispatch.
-
-Each AMR also consumes peer telemetry. Other robots' current positions and
-assigned goals are reserved with a one-cell safety radius during local
-planning. If a peer moves into a planned route, the affected AMR replans or
-waits until the temporary conflict clears. Completed robots therefore remain
-physical obstacles and recovery paths do not pass through another AMR's final
-position.
-
-Close the visualization window and press `Ctrl+C` to stop the launched ROS
-nodes. The Docker services remain running so the demo can be launched again
-without recreating the containers.
-
-## Stop the Environment
-
-When finished working, stop and remove the Compose containers and network:
-
-```bash
-docker compose down
-```
-
-The project source remains on the host and is not removed.
-
-## Manual Run Sequence
-
-The equivalent commands, useful for debugging, are:
+## Manual Development Sequence
 
 ```bash
 docker compose up -d
@@ -137,5 +200,61 @@ source install/setup.bash
 ros2 launch resilient_amr_dispatch demo.launch.py
 ```
 
-Type `exit` to leave the container shell. Rebuild the Docker image only after
-changing the `Dockerfile` or its system dependencies.
+Use `docker compose down` only when you want to stop and remove the containers
+and network. The host source code and captures are retained.
+
+## Testing
+
+Build the workspace and run the complete package test suite inside the ROS 2
+container:
+
+```bash
+docker compose exec -T ros2 bash -lc '
+  cd /workspace
+  source /opt/ros/jazzy/setup.bash
+  colcon build --symlink-install
+  source install/setup.bash
+  colcon test --packages-select resilient_amr_dispatch
+  colcon test-result --verbose
+'
+```
+
+The current suite covers scenario generation, hazard geometry, grid planning,
+recovery decisions, peer reservations, fleet metrics, and package imports. The
+end-to-end acceptance check is the visible `./run_demo.sh` scenario: missions
+must be assigned, the hazard must affect an active path, at least one local
+reroute must occur, and reachable missions must complete without crossing known
+blocked cells.
+
+## Limitations
+
+- The warehouse is a 2D point/grid simulation without real sensors, dynamics,
+  localization, perception, or hardware safety controls.
+- Local A* is an inspectable stand-in for Nav2 and a production traffic manager;
+  peer reservations do not provide formal multi-robot collision guarantees.
+- MQTT payloads are VDA5050-inspired JSON, not full VDA5050 compliance.
+- The broker has no production authentication, authorization, or TLS setup.
+- Mission state is not persisted across process restarts; only captures and the
+  final summary are written to the host.
+- The GUI setup targets Docker Desktop on WSLg and may need display changes on
+  native Linux or other container runtimes.
+
+## Potential Production Integrations
+
+- Replace the simplified motion and A* layer with Nav2 navigation, localization,
+  costmaps, and recovery behaviors.
+- Run the scenario in Isaac Sim to validate geometry, sensors, dynamics, and
+  robot behavior with higher fidelity.
+- Integrate an actual mission-management service, such as NVIDIA Isaac Mission
+  Dispatch, instead of the custom dispatcher.
+- Record ROS 2 data as rosbag/MCAP and expose operational views through
+  Foxglove or a production fleet dashboard.
+- Adopt complete VDA5050 schemas and add broker authentication, authorization,
+  TLS, persistence, and delivery/error handling.
+
+## Resume Bullet
+
+Built a ROS 2 Jazzy/MQTT warehouse AMR simulator with centralized mission
+dispatch, live telemetry visualization, deterministic hazard injection, local
+A* recovery, fleet-aware collision avoidance, exception reporting, and recovery
+metrics.

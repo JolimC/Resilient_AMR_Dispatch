@@ -62,6 +62,8 @@ class AmrAgent(Node):
             raise ValueError("robot_safety_radius must not be negative")
 
         self._mission_id = ""
+        self._mission_started_at: float | None = None
+        self._nominal_duration: float | None = None
         self._goal: tuple[float, float] | None = None
         self._state = "idle"
         self._battery = 1.0
@@ -138,6 +140,10 @@ class AmrAgent(Node):
                 self._log("order_rejected_busy", mission_id=mission_id)
                 return
             self._mission_id = mission_id
+            self._mission_started_at = time.time()
+            self._nominal_duration = math.hypot(
+                goal_x - self.x, goal_y - self.y
+            ) / self.speed
             self._goal = (goal_x, goal_y)
             self._path = (self._goal,)
             self._state = "assigned"
@@ -367,6 +373,8 @@ class AmrAgent(Node):
         payload = {
             "robot_id": self.robot_id,
             "mission_id": self._mission_id or None,
+            "mission_started_at": self._mission_started_at,
+            "nominal_duration": self._nominal_duration,
             "x": round(self.x, 3),
             "y": round(self.y, 3),
             "state": self._state,
