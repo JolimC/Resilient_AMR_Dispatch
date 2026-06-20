@@ -13,9 +13,9 @@ outcome. Handling these execution-level disruptions locally reduces avoidable
 control-plane load and response latency at mission control while preventing
 prolonged stops and inefficient routing across the fleet.
 
-## Final Demo
+## Demo Video
 
-[![Phase 5 final demo](docs/captures/phase5_metrics/final_summary.png)](docs/captures/phase5_metrics/phase5_metrics.mkv)
+[![Demo](Resilient_AMR_Dispatch/docs/phase5_demo_thumbnail.png)](https://JolimC.github.io/Resilient_AMR_Dispatch/Resilient_AMR_Dispatch/docs/phase5_demo.html)
 
 Click the image to view the Phase 5 demonstration of dispatch, hazard recovery,
 and final fleet metrics.
@@ -96,7 +96,7 @@ silently cross a known obstruction.
 - WSLg for the Matplotlib window
 - `docker` and `docker compose` available in the WSL terminal
 
-Run all commands below from the repository directory. Verify Docker first:
+Run the commands below from the repository root. Verify Docker first:
 
 ```bash
 docker version
@@ -108,8 +108,8 @@ docker compose version
 Build the ROS 2 image and start the Mosquitto and ROS 2 containers:
 
 ```bash
-docker compose up -d --build
-docker compose ps
+docker compose -f Resilient_AMR_Dispatch/docker-compose.yml up -d --build
+docker compose -f Resilient_AMR_Dispatch/docker-compose.yml ps
 ```
 
 Both services should be running and `mqtt` should be healthy. Use `--build`
@@ -122,7 +122,7 @@ workspace build performed by the demo script.
 Reproduce the full scenario with one command:
 
 ```bash
-./run_demo.sh
+./Resilient_AMR_Dispatch/run_demo.sh
 ```
 
 The script starts the Compose services if needed, runs
@@ -133,7 +133,7 @@ and injects `spill_001` after 2.5 seconds.
 Optional launch arguments select 6-12 robots or change the hazard timing:
 
 ```bash
-./run_demo.sh robot_count:=6 hazard_delay:=4.0
+./Resilient_AMR_Dispatch/run_demo.sh robot_count:=6 hazard_delay:=4.0
 ```
 
 During the run, affected robots stop using their invalid nominal paths and use
@@ -143,8 +143,8 @@ crossing a blocked area.
 
 The visualizer supports **Pause**, **Play**, and timeline scrubbing. Closing its
 window ends the launch. Press `Ctrl+C` if the terminal remains active. Run
-`./run_demo.sh` again to restart the scenario; recreating the containers between
-runs is unnecessary.
+`./Resilient_AMR_Dispatch/run_demo.sh` again to restart the scenario; recreating
+the containers between runs is unnecessary.
 
 ## Results and Captures
 
@@ -153,7 +153,7 @@ delay, and stale telemetry alerts. At terminal completion, `fleet_monitor` logs
 a structured `final_summary` and writes:
 
 ```text
-docs/captures/final_metrics.json
+Resilient_AMR_Dispatch/docs/captures/final_metrics.json
 ```
 
 The visualizer automatically writes these evidence frames to the same folder:
@@ -165,10 +165,10 @@ The visualizer automatically writes these evidence frames to the same folder:
 
 Existing recorded demonstrations:
 
-- [Phase 1 acceptance output](docs/captures/phase1_acceptance_checks.png)
-- [Phase 2 live visualization](docs/captures/Phase2_visualization.mkv)
-- [Phase 3 hazard injection](docs/captures/phase3_hazard_injection.mkv)
-- [Phase 4 local recovery](docs/captures/phase4_local_recovery.mkv)
+- [Phase 1 acceptance output](Resilient_AMR_Dispatch/docs/captures/phase1_acceptance_checks.png)
+- [Phase 2 live visualization](Resilient_AMR_Dispatch/docs/captures/Phase2_visualization.mkv)
+- [Phase 3 hazard injection](Resilient_AMR_Dispatch/docs/captures/phase3_hazard_injection.mkv)
+- [Phase 4 local recovery](Resilient_AMR_Dispatch/docs/captures/phase4_local_recovery.mkv)
 
 Metric definitions:
 
@@ -185,23 +185,24 @@ To run only the monitor while a scenario is active and write its latest summary
 when stopped:
 
 ```bash
-docker compose exec ros2 bash -lc \
+docker compose -f Resilient_AMR_Dispatch/docker-compose.yml exec ros2 bash -lc \
   'source /workspace/install/setup.bash && ros2 run resilient_amr_dispatch fleet_monitor --summary'
 ```
 
 ## Manual Development Sequence
 
 ```bash
-docker compose up -d
-docker compose exec ros2 bash
+docker compose -f Resilient_AMR_Dispatch/docker-compose.yml up -d
+docker compose -f Resilient_AMR_Dispatch/docker-compose.yml exec ros2 bash
 cd /workspace
 colcon build --symlink-install
 source install/setup.bash
 ros2 launch resilient_amr_dispatch demo.launch.py
 ```
 
-Use `docker compose down` only when you want to stop and remove the containers
-and network. The host source code and captures are retained.
+Use `docker compose -f Resilient_AMR_Dispatch/docker-compose.yml down` only when
+you want to stop and remove the containers and network. The host source code and
+captures are retained.
 
 ## Testing
 
@@ -209,7 +210,7 @@ Build the workspace and run the complete package test suite inside the ROS 2
 container:
 
 ```bash
-docker compose exec -T ros2 bash -lc '
+docker compose -f Resilient_AMR_Dispatch/docker-compose.yml exec -T ros2 bash -lc '
   cd /workspace
   source /opt/ros/jazzy/setup.bash
   colcon build --symlink-install
@@ -221,10 +222,10 @@ docker compose exec -T ros2 bash -lc '
 
 The current suite covers scenario generation, hazard geometry, grid planning,
 recovery decisions, peer reservations, fleet metrics, and package imports. The
-end-to-end acceptance check is the visible `./run_demo.sh` scenario: missions
-must be assigned, the hazard must affect an active path, at least one local
-reroute must occur, and reachable missions must complete without crossing known
-blocked cells.
+end-to-end acceptance check is the visible
+`./Resilient_AMR_Dispatch/run_demo.sh` scenario: missions must be assigned, the
+hazard must affect an active path, at least one local reroute must occur, and
+reachable missions must complete without crossing known blocked cells.
 
 ## Limitations
 
