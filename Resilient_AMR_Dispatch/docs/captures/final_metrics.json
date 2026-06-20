@@ -1,0 +1,10 @@
+{
+  "average_hazard_delay_seconds": 3.1,
+  "escalations": 0,
+  "final": true,
+  "hazards_injected": 1,
+  "local_reroutes": 4,
+  "missions_assigned": 8,
+  "missions_completed": 8,
+  "stale_telemetry_alerts": 0
+}

@@ -105,7 +105,7 @@ docker compose version
 
 ## First-Time Setup
 
-Build the ROS 2 image and start the Mosquitto and ROS 2 containers:
+Open Docker Desktop. Build the ROS 2 image and start the Mosquitto and ROS 2 containers:
 
 ```bash
 docker compose -f Resilient_AMR_Dispatch/docker-compose.yml up -d --build
