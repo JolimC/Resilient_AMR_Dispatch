@@ -163,9 +163,11 @@ The visualizer automatically writes these evidence frames to the same folder:
 - `local_reroute.png` [(example)](Resilient_AMR_Dispatch/docs/captures/phase5_metrics/local_reroute.png)
 - `final_summary.png` [(example)](Resilient_AMR_Dispatch/docs/captures/phase5_metrics/final_summary.png)
 
-Existing recorded demonstrations:
 
-These recordings show the project progressing from centralized mission
+
+Existing recorded demonstrations of the development process:
+
+Development of this project occured over 5 phases. These recordings show the project progressing from centralized mission
 dispatch (Phase 1), through live fleet visualization (Phase 2) and unexpected
 hazard injection (Phase 3), to bounded local rerouting and recovery (Phase 4).
 The demo at the top of the README adds final fleet metrics in Phase 5.
@@ -186,7 +188,7 @@ The demo at the top of the README adds final fleet metrics in Phase 5.
 
 [![Phase 4 local recovery](docs/phase4_demo_thumbnail.png)](https://JolimC.github.io/Resilient_AMR_Dispatch/phase4_demo.html)
 
-Metric definitions:
+Metric definitions (the full list of metrics is visible in the demo at the top of this README):
 
 - **Missions assigned/completed:** unique robot/mission pairs observed and those
   reaching `completed`.
