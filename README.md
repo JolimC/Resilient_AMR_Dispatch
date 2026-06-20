@@ -15,7 +15,7 @@ prolonged stops and inefficient routing across the fleet.
 
 ## Demo Video
 
-[![Demo](Resilient_AMR_Dispatch/docs/phase5_demo_thumbnail.png)](https://JolimC.github.io/Resilient_AMR_Dispatch/Resilient_AMR_Dispatch/docs/phase5_demo.html)
+[![Demo](docs/phase5_demo_thumbnail.png)](https://JolimC.github.io/Resilient_AMR_Dispatch/phase5_demo.html)
 
 Click the image to view the Phase 5 demonstration of dispatch, hazard recovery,
 and final fleet metrics.
