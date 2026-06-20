@@ -32,6 +32,7 @@ class DispatchNode(Node):
         self._observed_robots: set[str] = set()
         self._last_states: dict[str, str] = {}
         self._completed: set[str] = set()
+        self._affected_robots: set[str] = set()
         self._dispatch_delay = float(self.get_parameter("dispatch_delay").value)
         self._started_at = time.monotonic()
         self._mqtt_connected = False
@@ -119,6 +120,14 @@ class DispatchNode(Node):
 
         if lifecycle == "completed":
             self._completed.add(robot_id)
+        if state.get("path_affected") and robot_id not in self._affected_robots:
+            self._affected_robots.add(robot_id)
+            self._log(
+                "robot_path_affected",
+                robot_id=robot_id,
+                mission_id=mission_id,
+                hazard_ids=state.get("affected_hazard_ids", []),
+            )
         if len(self._completed) == len(self._missions) and not self._summary_logged:
             self._summary_logged = True
             self._log(

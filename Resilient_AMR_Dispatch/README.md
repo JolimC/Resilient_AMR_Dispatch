@@ -1,9 +1,10 @@
 # Resilient AMR Dispatch
 
-A ROS 2 Jazzy and MQTT warehouse AMR simulation. The current Phase 1 demo
+A ROS 2 Jazzy and MQTT warehouse AMR simulation. The current Phase 3 demo
 launches a central dispatcher and eight simulated robots. The dispatcher sends
-missions over MQTT, while the robots publish their positions and mission states
-over ROS 2.
+missions over MQTT, the robots publish their positions and mission states over
+ROS 2, and a live Matplotlib window visualizes warehouse activity and injected
+disruptions.
 
 ## Prerequisites
 
@@ -35,6 +36,13 @@ as running, with the MQTT service reporting as healthy.
 You only need `--build` again after changing the `Dockerfile` or its system
 dependencies.
 
+If you previously built Phase 0 or Phase 1, rebuild once for Phase 2 because the
+image now includes the Tk graphical backend:
+
+```bash
+docker compose up -d --build
+```
+
 ## Run the Demo
 
 From this repository directory in WSL, run:
@@ -57,16 +65,40 @@ through 12, pass a ROS launch argument:
 ./run_demo.sh robot_count:=6
 ```
 
-Phase 1 is terminal-based and does not open a graphical window. Each robot logs
-the `assigned`, `executing`, and `completed` mission states. A successful run
-ends with a dispatcher message containing:
+The default scenario injects `spill_001` after 2.5 seconds. Its delay can be
+changed with another ROS launch argument:
+
+```bash
+./run_demo.sh hazard_delay:=4.0
+```
+
+The demo opens a live warehouse window through WSLg. It shows shelves, staging
+and dock areas, robot positions, goals, planned paths, traveled paths, and a
+fleet status panel. Each robot also logs the `assigned`, `executing`, and
+`completed` mission states. A successful run ends with a dispatcher message
+containing:
 
 ```json
 {"event":"baseline_complete","missions_assigned":8,"missions_completed":8}
 ```
 
-Press `Ctrl+C` to stop the launched ROS nodes. The Docker services remain
-running so the demo can be launched again without recreating the containers.
+The visualization includes DVR-style playback controls:
+
+- **Pause** freezes the displayed frame while incoming telemetry continues to
+  be recorded.
+- **Timeline** can be dragged to inspect an earlier or later recorded frame.
+- **Play** resumes playback from the selected frame and returns to live display
+  after catching up.
+
+During Phase 3, a red hatched hazmat spill appears across the active paths of
+several robots. The injector publishes it on `/warehouse/hazards` and
+`vda5050/fleet/events/hazard`. Affected agents log `active_path_affected`, and
+the status panel reports the affected count. Local rerouting is intentionally
+deferred to Phase 4, so Phase 3 only detects and displays the disruption.
+
+Close the visualization window and press `Ctrl+C` to stop the launched ROS
+nodes. The Docker services remain running so the demo can be launched again
+without recreating the containers.
 
 ## Stop the Environment
 

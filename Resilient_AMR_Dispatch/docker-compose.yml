@@ -26,11 +26,19 @@ services:
       mqtt:
         condition: service_healthy
     environment:
+      DISPLAY: ${DISPLAY:-:0}
       MQTT_HOST: mqtt
       MQTT_PORT: "1883"
+      MPLBACKEND: TkAgg
+      QT_X11_NO_MITSHM: "1"
       ROS_DOMAIN_ID: "42"
+      WAYLAND_DISPLAY: ${WAYLAND_DISPLAY:-wayland-0}
+      XDG_RUNTIME_DIR: /mnt/wslg/runtime-dir
+      PULSE_SERVER: /mnt/wslg/PulseServer
     volumes:
       - ./src:/workspace/src
+      - /mnt/wslg:/mnt/wslg
+      - /tmp/.X11-unix:/tmp/.X11-unix
     working_dir: /workspace
     command:
       - bash

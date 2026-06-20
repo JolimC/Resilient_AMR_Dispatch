@@ -1,4 +1,4 @@
-"""Launch the Phase 1 centralized dispatch baseline."""
+"""Launch the resilient AMR dispatch demo."""
 
 from launch import LaunchContext, LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
@@ -12,6 +12,7 @@ def _launch_nodes(context: LaunchContext) -> list[Node]:
     robot_count = int(LaunchConfiguration("robot_count").perform(context))
     mqtt_host = LaunchConfiguration("mqtt_host").perform(context)
     mqtt_port = int(LaunchConfiguration("mqtt_port").perform(context))
+    hazard_delay = float(LaunchConfiguration("hazard_delay").perform(context))
     missions = create_missions(robot_count)
 
     nodes = [
@@ -47,6 +48,29 @@ def _launch_nodes(context: LaunchContext) -> list[Node]:
             ],
         )
     )
+    nodes.append(
+        Node(
+            package="resilient_amr_dispatch",
+            executable="hazard_injector",
+            name="hazard_injector",
+            output="screen",
+            parameters=[
+                {
+                    "mqtt_host": mqtt_host,
+                    "mqtt_port": mqtt_port,
+                    "injection_delay": hazard_delay,
+                }
+            ],
+        )
+    )
+    nodes.append(
+        Node(
+            package="resilient_amr_dispatch",
+            executable="visualizer",
+            name="visualizer",
+            output="screen",
+        )
+    )
     return nodes
 
 
@@ -56,6 +80,7 @@ def generate_launch_description() -> LaunchDescription:
             DeclareLaunchArgument("robot_count", default_value="8"),
             DeclareLaunchArgument("mqtt_host", default_value="mqtt"),
             DeclareLaunchArgument("mqtt_port", default_value="1883"),
+            DeclareLaunchArgument("hazard_delay", default_value="2.5"),
             OpaqueFunction(function=_launch_nodes),
         ]
     )

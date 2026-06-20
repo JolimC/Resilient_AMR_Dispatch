@@ -9,6 +9,7 @@ RUN apt-get update \
         python3-paho-mqtt \
         python3-pytest \
         python3-pytest-cov \
+        python3-tk \
     && rm -rf /var/lib/apt/lists/*
 
 RUN printf '%s\n' \

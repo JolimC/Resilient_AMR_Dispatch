@@ -26,6 +26,8 @@ setup(
         "console_scripts": [
             "amr_agent = resilient_amr_dispatch.amr_agent:main",
             "dispatch_node = resilient_amr_dispatch.dispatch_node:main",
+            "hazard_injector = resilient_amr_dispatch.hazard_injector:main",
+            "visualizer = resilient_amr_dispatch.visualizer:main",
         ],
     },
 )

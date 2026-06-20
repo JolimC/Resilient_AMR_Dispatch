@@ -22,6 +22,40 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Resilient_AMR_Dispatch.py" />
+    <Compile Include="src\resilient_amr_dispatch\resilient_amr_dispatch\__init__.py" />
+    <Compile Include="src\resilient_amr_dispatch\setup.py" />
+    <Compile Include="src\resilient_amr_dispatch\tests\test_package.py" />
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="docs\" />
+    <Folder Include="docs\captures\" />
+    <Folder Include="src\" />
+    <Folder Include="src\resilient_amr_dispatch\" />
+    <Folder Include="src\resilient_amr_dispatch\.pytest_cache\" />
+    <Folder Include="src\resilient_amr_dispatch\.pytest_cache\v\" />
+    <Folder Include="src\resilient_amr_dispatch\.pytest_cache\v\cache\" />
+    <Folder Include="src\resilient_amr_dispatch\resilient_amr_dispatch\" />
+    <Folder Include="src\resilient_amr_dispatch\resilient_amr_dispatch\__pycache__\" />
+    <Folder Include="src\resilient_amr_dispatch\resource\" />
+    <Folder Include="src\resilient_amr_dispatch\tests\" />
+    <Folder Include="src\resilient_amr_dispatch\tests\__pycache__\" />
+    <Folder Include="src\resilient_amr_dispatch\__pycache__\" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="docs\initial_instructions.md" />
+    <Content Include="docs\plan.md" />
+    <Content Include="src\resilient_amr_dispatch\.pytest_cache\.gitignore" />
+    <Content Include="src\resilient_amr_dispatch\.pytest_cache\CACHEDIR.TAG" />
+    <Content Include="src\resilient_amr_dispatch\.pytest_cache\README.md" />
+    <Content Include="src\resilient_amr_dispatch\.pytest_cache\v\cache\lastfailed" />
+    <Content Include="src\resilient_amr_dispatch\.pytest_cache\v\cache\nodeids" />
+    <Content Include="src\resilient_amr_dispatch\package.xml" />
+    <Content Include="src\resilient_amr_dispatch\resilient_amr_dispatch\__pycache__\__init__.cpython-314.pyc" />
+    <Content Include="src\resilient_amr_dispatch\resource\resilient_amr_dispatch" />
+    <Content Include="src\resilient_amr_dispatch\setup.cfg" />
+    <Content Include="src\resilient_amr_dispatch\tests\__pycache__\test_package.cpython-314-pytest-9.0.2.pyc" />
+    <Content Include="src\resilient_amr_dispatch\tests\__pycache__\test_package.cpython-314.pyc" />
+    <Content Include="src\resilient_amr_dispatch\__pycache__\setup.cpython-314.pyc" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
   <!-- Uncomment the CoreCompile target to enable the Build command in

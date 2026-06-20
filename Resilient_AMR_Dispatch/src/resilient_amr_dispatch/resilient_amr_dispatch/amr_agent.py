@@ -1,4 +1,4 @@
-"""Simulated AMR that executes one centrally assigned Phase 1 mission."""
+"""Simulated AMR that executes a mission and observes warehouse hazards."""
 
 from __future__ import annotations
 
@@ -11,11 +11,15 @@ from typing import Any
 import paho.mqtt.client as mqtt
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import String
+
+from resilient_amr_dispatch.hazards import Hazard
 
 
 ORDER_TOPIC = "vda5050/fleet/order"
 STATE_TOPIC = "/fleet/robot_state"
+HAZARD_TOPIC = "/warehouse/hazards"
 
 
 class AmrAgent(Node):
@@ -41,8 +45,16 @@ class AmrAgent(Node):
         self._goal: tuple[float, float] | None = None
         self._state = "idle"
         self._battery = 1.0
+        self._hazards: dict[str, Hazard] = {}
+        self._affected_hazard_ids: set[str] = set()
         self._lock = threading.Lock()
         self._state_publisher = self.create_publisher(String, STATE_TOPIC, 10)
+        hazard_qos = QoSProfile(
+            depth=10,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+        self.create_subscription(String, HAZARD_TOPIC, self._on_hazard, hazard_qos)
 
         self._mqtt = mqtt.Client(client_id=f"{self.robot_id}-agent")
         self._mqtt.on_connect = self._on_mqtt_connect
@@ -99,7 +111,54 @@ class AmrAgent(Node):
             self._mission_id = mission_id
             self._goal = (goal_x, goal_y)
             self._state = "assigned"
+            newly_affected = self._detect_affected_hazards_locked()
         self._log("mission_assigned", mission_id=mission_id, goal=order["goal"])
+        self._log_newly_affected(newly_affected)
+
+    def _on_hazard(self, message: String) -> None:
+        try:
+            payload = json.loads(message.data)
+            hazard = Hazard.from_payload(payload)
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+            self.get_logger().error(
+                json.dumps(
+                    {"event": "invalid_hazard", "robot_id": self.robot_id, "error": str(exc)}
+                )
+            )
+            return
+
+        with self._lock:
+            self._hazards[hazard.hazard_id] = hazard
+            newly_affected = self._detect_affected_hazards_locked()
+        self._log(
+            "hazard_received",
+            hazard_id=hazard.hazard_id,
+            hazard_type=hazard.hazard_type,
+        )
+        self._log_newly_affected(newly_affected)
+
+    def _detect_affected_hazards_locked(self) -> list[Hazard]:
+        if self._goal is None or self._state not in ("assigned", "executing"):
+            return []
+        newly_affected = []
+        for hazard in self._hazards.values():
+            if (
+                hazard.severity == "blocked"
+                and hazard.hazard_id not in self._affected_hazard_ids
+                and hazard.bounds.intersects_segment((self.x, self.y), self._goal)
+            ):
+                self._affected_hazard_ids.add(hazard.hazard_id)
+                newly_affected.append(hazard)
+        return newly_affected
+
+    def _log_newly_affected(self, hazards: list[Hazard]) -> None:
+        for hazard in hazards:
+            self._log(
+                "active_path_affected",
+                mission_id=self._mission_id,
+                hazard_id=hazard.hazard_id,
+                reason=hazard.hazard_type,
+            )
 
     def _tick(self) -> None:
         with self._lock:
@@ -138,6 +197,8 @@ class AmrAgent(Node):
             "recovery_state": "none",
             "battery": round(self._battery, 4),
             "goal": None if goal is None else {"x": goal[0], "y": goal[1]},
+            "path_affected": bool(self._affected_hazard_ids),
+            "affected_hazard_ids": sorted(self._affected_hazard_ids),
             "timestamp": time.time(),
         }
         message = String()
